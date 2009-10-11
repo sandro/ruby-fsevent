@@ -1,0 +1,30 @@
+C program
+---------------
+
+callback(files) {
+  for file in files
+    ruby_callback(file)
+  end
+}
+watch(dir) {
+  start watching dir
+  callback()
+}
+
+main() {
+  pass()
+}
+
+Ruby
+----------------
+class Watchr
+  def ruby_callback(file)
+    if callback = registered_callback[file]
+      callback.call
+    end
+  end
+
+  def initialize
+    watch(File.cwd())
+  end
+end
