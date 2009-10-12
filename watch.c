@@ -54,7 +54,6 @@ static VALUE t_init(VALUE self, VALUE original_directory_name) {
 }
 
 static VALUE t_directory_change(VALUE self, VALUE original_directory_name) {
-  rb_raise(rb_eNotImpError, "You must define #directory_change in your subclass");
   return self;
 }
 
