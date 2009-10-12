@@ -6,9 +6,15 @@ trap("INT") do
 end
 
 class LibWatch < Watch
+  def initialize(dir)
+    super(dir)
+    @latency = 0.5
+  end
+
   def something
     puts "something called"
   end
+
   def directory_change(directory)
     puts "Ruby callback: #{directory}"
     exit 0

@@ -34,7 +34,9 @@ void watch_directory(VALUE self, char *directory_name) {
 
   CFStringRef mypath = CFStringCreateWithCString(NULL, directory_name, kCFStringEncodingUTF8);
   CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&mypath, 1, NULL);
-  CFAbsoluteTime latency = 0.5;
+
+  VALUE rb_latency = rb_iv_get(self, "@latency");
+  CFAbsoluteTime latency = NUM2DBL(rb_latency);
 
   FSEventStreamContext context;
   context.version = 0;
@@ -61,6 +63,7 @@ void watch_directory(VALUE self, char *directory_name) {
 static VALUE t_init(VALUE self, VALUE original_directory_name) {
   VALUE directory_name = StringValue(original_directory_name);
   rb_iv_set(self, "@directory_name", directory_name);
+  rb_iv_set(self, "@latency", rb_float_new(0.5));
   return self;
 }
 
