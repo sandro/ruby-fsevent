@@ -1,22 +1,24 @@
 #include "ruby.h"
-/* #include "fswatch.c" */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <CoreServices/CoreServices.h>
 
+/*
+ * Thanks to fswatch.c for providing a starting point
+ * http://github.com/alandipert/fswatch
+*/
 
-VALUE watch_class;
 
 void callback(
-    ConstFSEventStreamRef streamRef,
-    void *context,
-    size_t numEvents,
-    void *eventPaths,
-    const FSEventStreamEventFlags eventFlags[],
-    const FSEventStreamEventId eventIds[])
-{
+  ConstFSEventStreamRef streamRef,
+  void *context,
+  size_t numEvents,
+  void *eventPaths,
+  const FSEventStreamEventFlags eventFlags[],
+  const FSEventStreamEventId eventIds[]
+) {
   VALUE self = (VALUE)context;
   int i;
   char **paths = eventPaths;
@@ -76,6 +78,8 @@ static VALUE t_run(VALUE self) {
   watch_directory(self, RSTRING(directory_name)->ptr);
   return self;
 }
+
+VALUE watch_class;
 
 void Init_watch() {
   watch_class = rb_define_class("Watch", rb_cObject);
