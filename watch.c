@@ -6,6 +6,9 @@
 #include <signal.h>
 #include <CoreServices/CoreServices.h>
 
+
+VALUE watch_class;
+
 void callback(
     ConstFSEventStreamRef streamRef,
     void *clientCallBackInfo,
@@ -15,10 +18,12 @@ void callback(
     const FSEventStreamEventId eventIds[])
 {
   int i;
+  char **paths = eventPaths;
 
   for (i = 0; i < numEvents; i++) {
-    printf("%s\n", ((char **)eventPaths)[i]);
+    printf("%s\n", paths[i]);
   }
+  exit(0);
 }
 
 void watch_directory(VALUE self, char *directory_name) {
