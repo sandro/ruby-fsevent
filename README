@@ -1,0 +1,5 @@
+Instructions
+1. Run make
+2. Run ruby test_ext.rb
+3. Save a file in the current directory
+4. Watch the output in the console
