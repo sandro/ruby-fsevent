@@ -21,10 +21,10 @@ void callback(
   }
 }
 
-//set up fsevents and callback
-void watch_directory(char *directory_name) {
+void watch_directory(VALUE self, char *directory_name) {
   printf("Watching dir\n");
   printf("%s\n\n", directory_name);
+  rb_funcall(self, rb_intern("something"), 0);
 
   CFStringRef mypath = CFStringCreateWithCString(NULL, directory_name, kCFStringEncodingUTF8);
   CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&mypath, 1, NULL);
@@ -49,7 +49,6 @@ void watch_directory(char *directory_name) {
 static VALUE t_init(VALUE self, VALUE original_directory_name) {
   VALUE directory_name = StringValue(original_directory_name);
   rb_iv_set(self, "@directory_name", directory_name);
-  watch_directory(RSTRING(directory_name)->ptr);
   return self;
 }
 
@@ -57,10 +56,15 @@ static VALUE t_directory_change(VALUE self, VALUE original_directory_name) {
   return self;
 }
 
-VALUE watch_class;
+static VALUE t_run(VALUE self) {
+  VALUE directory_name = rb_iv_get(self, "@directory_name");
+  watch_directory(self, RSTRING(directory_name)->ptr);
+  return self;
+}
 
 void Init_watch() {
   watch_class = rb_define_class("Watch", rb_cObject);
   rb_define_method(watch_class, "initialize", t_init, 1);
   rb_define_method(watch_class, "directory_change", t_directory_change, 1);
+  rb_define_method(watch_class, "run", t_run, 0);
 }
