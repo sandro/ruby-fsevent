@@ -11,35 +11,42 @@ VALUE watch_class;
 
 void callback(
     ConstFSEventStreamRef streamRef,
-    void *clientCallBackInfo,
+    void *context,
     size_t numEvents,
     void *eventPaths,
     const FSEventStreamEventFlags eventFlags[],
     const FSEventStreamEventId eventIds[])
 {
+  VALUE self = (VALUE)context;
   int i;
   char **paths = eventPaths;
 
   for (i = 0; i < numEvents; i++) {
-    printf("%s\n", paths[i]);
+    printf("C callback: %s\n", paths[i]);
+    rb_funcall(self, rb_intern("directory_change"), 1, rb_str_new2(paths[i]));
   }
-  exit(0);
 }
 
 void watch_directory(VALUE self, char *directory_name) {
-  printf("Watching dir\n");
+  printf("Watching dir ");
   printf("%s\n\n", directory_name);
   rb_funcall(self, rb_intern("something"), 0);
 
   CFStringRef mypath = CFStringCreateWithCString(NULL, directory_name, kCFStringEncodingUTF8);
   CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&mypath, 1, NULL);
-  void *callbackInfo = NULL;
-  FSEventStreamRef stream;
   CFAbsoluteTime latency = 0.5;
 
+  FSEventStreamContext context;
+  context.version = 0;
+  context.info = self;
+  context.retain = NULL;
+  context.release = NULL;
+  context.copyDescription = NULL;
+
+  FSEventStreamRef stream;
   stream = FSEventStreamCreate(NULL,
     &callback,
-    callbackInfo,
+    &context,
     pathsToWatch,
     kFSEventStreamEventIdSinceNow,
     latency,
