@@ -85,8 +85,10 @@ static VALUE t_run(VALUE self) {
 }
 
 void kill_watcher() {
-  kill(pid, SIGKILL);
-  printf("\n");
+  if (pid) {
+    kill(pid, SIGKILL);
+    printf("\n");
+  }
 }
 
 VALUE watch_class;
