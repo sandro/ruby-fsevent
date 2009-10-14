@@ -28,7 +28,9 @@ void callback(
   }
 }
 
-void watch_directory(VALUE self, char *directory_name) {
+void watch_directory(VALUE self) {
+  VALUE rb_directory_name = rb_iv_get(self, "@directory_name");
+  char *directory_name = RSTRING(rb_directory_name)->ptr;
 
   CFStringRef mypath = CFStringCreateWithCString(NULL, directory_name, kCFStringEncodingUTF8);
   CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&mypath, 1, NULL);
@@ -69,17 +71,26 @@ static VALUE t_directory_change(VALUE self, VALUE original_directory_name) {
   return self;
 }
 
+int pid, status;
 static VALUE t_run(VALUE self) {
-  VALUE directory_name = rb_iv_get(self, "@directory_name");
-  watch_directory(self, RSTRING(directory_name)->ptr);
+  if (pid = fork()) {
+    wait(&status);
+  }
+  else {
+    watch_directory(self);
+  }
   return self;
 }
 
-VALUE watch_class;
+void kill_watcher() {
+  kill(pid, SIGKILL);
+}
 
+VALUE watch_class;
 void Init_watch() {
   watch_class = rb_define_class("Watch", rb_cObject);
   rb_define_method(watch_class, "initialize", t_init, 1);
   rb_define_method(watch_class, "directory_change", t_directory_change, 1);
   rb_define_method(watch_class, "run", t_run, 0);
+  atexit(kill_watcher);
 }
