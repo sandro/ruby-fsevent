@@ -40,7 +40,7 @@ void watch_directory(VALUE self) {
 
   FSEventStreamContext context;
   context.version = 0;
-  context.info = self;
+  context.info = (VALUE *)self;
   context.retain = NULL;
   context.release = NULL;
   context.copyDescription = NULL;
@@ -84,6 +84,7 @@ static VALUE t_run(VALUE self) {
 
 void kill_watcher() {
   kill(pid, SIGKILL);
+  printf("\n");
 }
 
 VALUE watch_class;
