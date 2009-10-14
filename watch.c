@@ -22,10 +22,12 @@ void callback(
   VALUE self = (VALUE)context;
   int i;
   char **paths = eventPaths;
-
+  VALUE rb_paths[numEvents];
   for (i = 0; i < numEvents; i++) {
-    rb_funcall(self, rb_intern("directory_change"), 1, rb_str_new2(paths[i]));
+    VALUE name = rb_str_new2(paths[i]);
+    rb_paths[i] = name;
   }
+  rb_funcall(self, rb_intern("directory_change"), 1, rb_ary_new4(numEvents, rb_paths));
 }
 
 void watch_directory(VALUE self) {

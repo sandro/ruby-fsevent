@@ -7,7 +7,7 @@ class LibWatch < Watch
   end
 
   def directory_change(directory)
-    puts "Ruby callback: #{directory}"
+    puts "Ruby callback: #{directory.inspect}"
   end
 end
 
