@@ -1,4 +1,4 @@
-#include "ruby.h"
+#include <ruby.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -24,15 +24,11 @@ void callback(
   char **paths = eventPaths;
 
   for (i = 0; i < numEvents; i++) {
-    printf("C callback: %s\n", paths[i]);
     rb_funcall(self, rb_intern("directory_change"), 1, rb_str_new2(paths[i]));
   }
 }
 
 void watch_directory(VALUE self, char *directory_name) {
-  printf("Watching dir ");
-  printf("%s\n\n", directory_name);
-  rb_funcall(self, rb_intern("something"), 0);
 
   CFStringRef mypath = CFStringCreateWithCString(NULL, directory_name, kCFStringEncodingUTF8);
   CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&mypath, 1, NULL);
