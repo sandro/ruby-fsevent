@@ -68,7 +68,7 @@ static VALUE t_init(VALUE self, VALUE original_directory_name) {
 }
 
 static VALUE t_directory_change(VALUE self, VALUE original_directory_name) {
-  return self;
+  return Qnil;
 }
 
 int pid, status;
