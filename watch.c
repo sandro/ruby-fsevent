@@ -69,15 +69,24 @@ void watch_directory(VALUE self) {
   CFRunLoopRun();
 }
 
-static VALUE t_init(VALUE self, VALUE original_directory_name) {
-  VALUE directory_name = StringValue(original_directory_name);
-  rb_iv_set(self, "@directory_name", directory_name);
+static VALUE t_init(VALUE self) {
   rb_iv_set(self, "@latency", rb_float_new(0.5));
   return self;
 }
 
 static VALUE t_directory_change(VALUE self, VALUE original_directory_name) {
   return Qnil;
+}
+
+static VALUE t_watch_directories(VALUE self, VALUE directories) {
+  if (TYPE(directories) == T_ARRAY) {
+    rb_iv_set(self, "@registered_directories", rb_ary_new4(RARRAY(directories)->len, RARRAY(directories)->ptr));
+  }
+  else {
+    rb_iv_set(self, "@registered_directories", rb_ary_new3(1, directories));
+  }
+  VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
+  return rb_registered_directories;
 }
 
 int pid, status;
@@ -103,8 +112,9 @@ void kill_watcher() {
 VALUE watch_class;
 void Init_watch() {
   watch_class = rb_define_class("Watch", rb_cObject);
-  rb_define_method(watch_class, "initialize", t_init, 1);
+  rb_define_method(watch_class, "initialize", t_init, 0);
   rb_define_method(watch_class, "directory_change", t_directory_change, 1);
+  rb_define_method(watch_class, "watch_directories", t_watch_directories, 1);
   rb_define_method(watch_class, "run", t_run, 0);
   atexit(kill_watcher);
 }
