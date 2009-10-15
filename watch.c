@@ -31,11 +31,18 @@ void callback(
 }
 
 void watch_directory(VALUE self) {
-  VALUE rb_directory_name = rb_iv_get(self, "@directory_name");
-  char *directory_name = RSTRING(rb_directory_name)->ptr;
+  VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
+  int i, dir_size;
+  dir_size = RARRAY(rb_registered_directories)->len;
 
-  CFStringRef mypath = CFStringCreateWithCString(NULL, directory_name, kCFStringEncodingUTF8);
-  CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&mypath, 1, NULL);
+  VALUE *rb_dir_names = RARRAY(rb_registered_directories)->ptr;
+  CFStringRef dir_names[dir_size];
+  for (i = 0; i < dir_size; i++) {
+    dir_names[i] = CFStringCreateWithCString(NULL, (char *)RSTRING(rb_dir_names[i])->ptr, kCFStringEncodingUTF8);
+  }
+
+  CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&dir_names, dir_size, NULL);
+
 
   VALUE rb_latency = rb_iv_get(self, "@latency");
   CFAbsoluteTime latency = NUM2DBL(rb_latency);
@@ -75,6 +82,8 @@ static VALUE t_directory_change(VALUE self, VALUE original_directory_name) {
 
 int pid, status;
 static VALUE t_run(VALUE self) {
+  VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
+  Check_Type(rb_registered_directories, T_ARRAY);
   if (pid = fork()) {
     wait(&status);
   }
