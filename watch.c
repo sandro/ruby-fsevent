@@ -116,5 +116,8 @@ void Init_watch() {
   rb_define_method(watch_class, "directory_change", t_directory_change, 1);
   rb_define_method(watch_class, "watch_directories", t_watch_directories, 1);
   rb_define_method(watch_class, "run", t_run, 0);
+
+  rb_define_attr(watch_class, "latency", 1, 1);
+
   atexit(kill_watcher);
 }
