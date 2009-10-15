@@ -1,7 +1,6 @@
 require 'watch'
 
 class LibWatch < Watch
-  attr_accessor :latency
   attr_reader :watch_pid
 
   def directory_change(directory)
@@ -10,7 +9,12 @@ class LibWatch < Watch
 end
 
 l = LibWatch.new
+
+p l.latency
 l.latency = 0.2
+p l.latency
+
 # l.watch_directories "."
 l.watch_directories %w(. /tmp)
+
 l.run
