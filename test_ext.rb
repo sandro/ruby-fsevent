@@ -1,8 +1,6 @@
 require 'watch'
 
 class LibWatch < Watch
-  attr_reader :watch_pid
-
   def directory_change(directory)
     puts "Ruby callback: #{directory.inspect}"
   end
