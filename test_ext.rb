@@ -1,7 +1,7 @@
 require 'watch'
 
 class LibWatch < Watch
-  def directory_change(directory)
+  def on_change(directory)
     puts "Ruby callback: #{directory.inspect}"
   end
 end
