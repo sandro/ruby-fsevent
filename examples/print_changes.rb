@@ -13,5 +13,5 @@ end
 
 printer = PrintChange.new
 printer.latency = 0.2
-printer.watch_directories %w(. /tmp)
+printer.watch_directories %W(#{Dir.pwd} /tmp)
 printer.run
