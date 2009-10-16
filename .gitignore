@@ -2,3 +2,4 @@ ext/Makefile
 ext/*.o
 ext/*.bundle
 ext/mkmf.log
+pkg/*
