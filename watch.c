@@ -27,7 +27,7 @@ void callback(
     VALUE name = rb_str_new2(paths[i]);
     rb_paths[i] = name;
   }
-  rb_funcall(self, rb_intern("directory_change"), 1, rb_ary_new4(numEvents, rb_paths));
+  rb_funcall(self, rb_intern("on_change"), 1, rb_ary_new4(numEvents, rb_paths));
 }
 
 void watch_directory(VALUE self) {
@@ -74,7 +74,7 @@ static VALUE t_init(VALUE self) {
   return self;
 }
 
-static VALUE t_directory_change(VALUE self, VALUE original_directory_name) {
+static VALUE t_on_change(VALUE self, VALUE original_directory_name) {
   return Qnil;
 }
 
@@ -113,7 +113,7 @@ VALUE watch_class;
 void Init_watch() {
   watch_class = rb_define_class("Watch", rb_cObject);
   rb_define_method(watch_class, "initialize", t_init, 0);
-  rb_define_method(watch_class, "directory_change", t_directory_change, 1);
+  rb_define_method(watch_class, "on_change", t_on_change, 1);
   rb_define_method(watch_class, "watch_directories", t_watch_directories, 1);
   rb_define_method(watch_class, "run", t_run, 0);
 
