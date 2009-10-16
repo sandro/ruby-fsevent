@@ -118,6 +118,7 @@ void Init_watch() {
   rb_define_method(watch_class, "run", t_run, 0);
 
   rb_define_attr(watch_class, "latency", 1, 1);
+  rb_define_attr(watch_class, "registered_directories", 1, 1);
 
   atexit(kill_watcher);
 }
