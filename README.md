@@ -1,4 +1,5 @@
-= ruby-fsevent
+ruby-fsevent
+============
 
 A native extension exposing the OS X FSEvent API.
 Register directories you want to watch and a callback will fire whenever a
@@ -10,20 +11,25 @@ file handlers but I started waiting 4-5 seconds for an event to fire. With a
 generic, native interface to the FSEvent API we can harness the speed of
 FSEvents without depending on RubyCocoa.
 
-== Demo
-* cd ext
-* ruby extconf.rb
-* make
-* cd ..
-* ruby examples/print_changes.rb
-* Notice that the examples directory and the /tmp directories are being monitored
-* Make a change to either directory and watch the callback fire
+Demo
+----
 
-== TODO
-* Ability to register a block as a callback handler, on_change then calls the
-block. This removes the need for subclassing
+1. cd ext/
+2. ruby extconf.rb
+3. make
+4. cd ../
+5. ruby examples/print_changes.rb
+6. Notice that the examples directory and the /tmp directories are being monitored
+7. Make a change to either directory and watch the callback fire
 
-== Note on Patches/Pull Requests
+TODO
+----
+
+* Add ability to register a block as a callback handler, on_change would then
+call the block. This removes the need for subclassing.
+
+Note on Patches/Pull Requests
+-----------------------------
 
 * Fork the project.
 * Make your feature addition or bug fix.
@@ -34,6 +40,7 @@ block. This removes the need for subclassing
    bump version in a commit by itself I can ignore when I pull)
 * Send me a pull request. Bonus points for topic branches.
 
-== Copyright
+Copyright
+---------
 
 Copyright (c) 2009 Sandro Turriate. See LICENSE for details.
