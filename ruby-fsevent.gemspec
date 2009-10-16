@@ -28,6 +28,7 @@ Gem::Specification.new do |s|
      "examples/print_changes.rb",
      "ext/extconf.rb",
      "ext/fsevent.c",
+     "ruby-fsevent.gemspec",
      "spec/fsevent_spec.rb",
      "spec/spec_helper.rb"
   ]
