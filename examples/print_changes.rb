@@ -1,18 +1,17 @@
-require 'watch'
+require File.dirname(__FILE__) + '/../ext/fs_event'
 
-class LibWatch < Watch
-  def on_change(directory)
-    puts "Ruby callback: #{directory.inspect}"
+class PrintChange < FsEvent
+  def on_change(directories)
+    puts "Detected change in: #{directories.inspect}"
+  end
+
+  def run
+    puts "watching #{registered_directories.join(", ")} for changes"
+    super
   end
 end
 
-l = LibWatch.new
-
-p l.latency
-l.latency = 0.2
-p l.latency
-
-# l.watch_directories "."
-l.watch_directories %w(. /tmp)
-
-l.run
+printer = PrintChange.new
+printer.latency = 0.2
+printer.watch_directories %w(. /tmp)
+printer.run
