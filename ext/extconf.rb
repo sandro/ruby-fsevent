@@ -1,2 +1,4 @@
 require 'mkmf'
-create_makefile("watch")
+with_ldflags("-framework CoreServices") do
+  create_makefile("fs_event")
+end

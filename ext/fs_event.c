@@ -109,16 +109,16 @@ void kill_watcher() {
   }
 }
 
-VALUE watch_class;
-void Init_watch() {
-  watch_class = rb_define_class("Watch", rb_cObject);
-  rb_define_method(watch_class, "initialize", t_init, 0);
-  rb_define_method(watch_class, "on_change", t_on_change, 1);
-  rb_define_method(watch_class, "watch_directories", t_watch_directories, 1);
-  rb_define_method(watch_class, "run", t_run, 0);
+VALUE fs_event_class;
+void Init_fs_event() {
+  fs_event_class = rb_define_class("FsEvent", rb_cObject);
+  rb_define_method(fs_event_class, "initialize", t_init, 0);
+  rb_define_method(fs_event_class, "on_change", t_on_change, 1);
+  rb_define_method(fs_event_class, "watch_directories", t_watch_directories, 1);
+  rb_define_method(fs_event_class, "run", t_run, 0);
 
-  rb_define_attr(watch_class, "latency", 1, 1);
-  rb_define_attr(watch_class, "registered_directories", 1, 1);
+  rb_define_attr(fs_event_class, "latency", 1, 1);
+  rb_define_attr(fs_event_class, "registered_directories", 1, 1);
 
   atexit(kill_watcher);
 }
