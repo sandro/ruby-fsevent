@@ -1,6 +1,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 
-describe FsEvent do
+describe FSEvent do
   describe "accessors" do
     it "reads and writes registered_directories" do
       subject.registered_directories = %w(one two)

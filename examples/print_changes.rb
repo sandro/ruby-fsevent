@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../ext/fs_event'
+require File.dirname(__FILE__) + '/../ext/fsevent'
 
-class PrintChange < FsEvent
+class PrintChange < FSEvent
   def on_change(directories)
     puts "Detected change in: #{directories.inspect}"
   end
