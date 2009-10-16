@@ -19,6 +19,10 @@ FSEvents without depending on RubyCocoa.
 * Notice that the examples directory and the /tmp directories are being monitored
 * Make a change to either directory and watch the callback fire
 
+== TODO
+* Ability to register a block as a callback handler, on_change then calls the
+block. This removes the need for subclassing
+
 == Note on Patches/Pull Requests
 
 * Fork the project.
