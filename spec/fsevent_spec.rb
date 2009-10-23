@@ -26,6 +26,8 @@ describe FSEvent do
 
   describe "API" do
     it { should respond_to(:on_change) }
-    it { should respond_to(:run) }
+    it { should respond_to(:start) }
+    it { should respond_to(:stop) }
+    it { should respond_to(:restart) }
   end
 end

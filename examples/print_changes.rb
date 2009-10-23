@@ -5,7 +5,7 @@ class PrintChange < FSEvent
     puts "Detected change in: #{directories.inspect}"
   end
 
-  def run
+  def start
     puts "watching #{registered_directories.join(", ")} for changes"
     super
   end
@@ -14,4 +14,4 @@ end
 printer = PrintChange.new
 printer.latency = 0.2
 printer.watch_directories %W(#{Dir.pwd} /tmp)
-printer.run
+printer.start

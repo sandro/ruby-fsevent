@@ -10,7 +10,6 @@
  * http://github.com/alandipert/fswatch
 */
 
-
 void callback(
   ConstFSEventStreamRef streamRef,
   void *context,
@@ -90,7 +89,7 @@ static VALUE t_watch_directories(VALUE self, VALUE directories) {
 }
 
 int pid, status;
-static VALUE t_run(VALUE self) {
+static VALUE t_start(VALUE self) {
   VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
   Check_Type(rb_registered_directories, T_ARRAY);
   if (pid = fork()) {
@@ -99,6 +98,8 @@ static VALUE t_run(VALUE self) {
   else {
     watch_directory(self);
   }
+static VALUE t_stop(VALUE self) {
+  CFRunLoopStop(CFRunLoopGetCurrent());
   return self;
 }
 
@@ -106,6 +107,12 @@ void kill_watcher() {
   if (pid) {
     kill(pid, SIGKILL);
     printf("\n");
+static VALUE t_restart(VALUE self) {
+  t_stop(self);
+  watch_directory(self);
+  return self;
+}
+
   }
 }
 
@@ -115,7 +122,9 @@ void Init_fsevent() {
   rb_define_method(fsevent_class, "initialize", t_init, 0);
   rb_define_method(fsevent_class, "on_change", t_on_change, 1);
   rb_define_method(fsevent_class, "watch_directories", t_watch_directories, 1);
-  rb_define_method(fsevent_class, "run", t_run, 0);
+  rb_define_method(fsevent_class, "start", t_start, 0);
+  rb_define_method(fsevent_class, "stop", t_stop, 0);
+  rb_define_method(fsevent_class, "restart", t_restart, 0);
 
   rb_define_attr(fsevent_class, "latency", 1, 1);
   rb_define_attr(fsevent_class, "registered_directories", 1, 1);
