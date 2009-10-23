@@ -37,6 +37,10 @@ task :spec => :check_dependencies
 
 task :default => :spec
 
+task :make do
+  system "cd ext && ruby extconf.rb && make"
+end
+
 require 'rake/rdoctask'
 Rake::RDocTask.new do |rdoc|
   if File.exist?('VERSION')
