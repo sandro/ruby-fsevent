@@ -92,32 +92,41 @@ int pid, status;
 static VALUE t_start(VALUE self) {
   VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
   Check_Type(rb_registered_directories, T_ARRAY);
-  if (pid = fork()) {
-    wait(&status);
-  }
-  else {
-    watch_directory(self);
-  }
+
+  watch_directory(self);
+  return self;
+}
+
 static VALUE t_stop(VALUE self) {
   CFRunLoopStop(CFRunLoopGetCurrent());
   return self;
 }
 
-void kill_watcher() {
-  if (pid) {
-    kill(pid, SIGKILL);
-    printf("\n");
 static VALUE t_restart(VALUE self) {
   t_stop(self);
   watch_directory(self);
   return self;
 }
 
+void delegate_signal_to_ruby(int signal) {
+  printf("\n");
+  VALUE signal_mod = rb_const_get(rb_cObject, rb_intern("Signal"));
+  if (rb_funcall(signal_mod, rb_intern("handles?"), 1, INT2FIX(signal)) == Qtrue) {
+    rb_funcall(signal_mod, rb_intern("handle"), 1, INT2FIX(signal));
+  }
+  else {
+    switch(signal) {
+      case SIGINT:
+      case SIGQUIT:
+        exit(0);
+    }
   }
 }
 
 VALUE fsevent_class;
 void Init_fsevent() {
+  rb_require("fsevent/signal_ext");
+
   fsevent_class = rb_define_class("FSEvent", rb_cObject);
   rb_define_method(fsevent_class, "initialize", t_init, 0);
   rb_define_method(fsevent_class, "on_change", t_on_change, 1);
@@ -129,5 +138,6 @@ void Init_fsevent() {
   rb_define_attr(fsevent_class, "latency", 1, 1);
   rb_define_attr(fsevent_class, "registered_directories", 1, 1);
 
-  atexit(kill_watcher);
+  (void) signal(SIGINT, delegate_signal_to_ruby);
+  (void) signal(SIGQUIT, delegate_signal_to_ruby);
 }
