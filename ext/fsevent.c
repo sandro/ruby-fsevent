@@ -109,17 +109,14 @@ static VALUE t_restart(VALUE self) {
 }
 
 void delegate_signal_to_ruby(int signal) {
-  printf("\n");
   VALUE signal_mod = rb_const_get(rb_cObject, rb_intern("Signal"));
   if (rb_funcall(signal_mod, rb_intern("handles?"), 1, INT2FIX(signal)) == Qtrue) {
     rb_funcall(signal_mod, rb_intern("handle"), 1, INT2FIX(signal));
   }
   else {
-    switch(signal) {
-      case SIGINT:
-      case SIGQUIT:
-        exit(0);
-    }
+    ruby_default_signal(signal);
+  }
+}
   }
 }
 
