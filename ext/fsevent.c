@@ -10,6 +10,9 @@
  * http://github.com/alandipert/fswatch
 */
 
+FSEventStreamRef stream;
+VALUE fsevent_class;
+
 void callback(
   ConstFSEventStreamRef streamRef,
   void *context,
@@ -53,7 +56,6 @@ void watch_directory(VALUE self) {
   context.release = NULL;
   context.copyDescription = NULL;
 
-  FSEventStreamRef stream;
   stream = FSEventStreamCreate(NULL,
     &callback,
     &context,
@@ -88,7 +90,6 @@ static VALUE t_watch_directories(VALUE self, VALUE directories) {
   return rb_registered_directories;
 }
 
-int pid, status;
 static VALUE t_start(VALUE self) {
   VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
   Check_Type(rb_registered_directories, T_ARRAY);
@@ -125,7 +126,6 @@ void register_signal_delegation() {
   }
 }
 
-VALUE fsevent_class;
 void Init_fsevent() {
   rb_require("fsevent/signal_ext");
 
