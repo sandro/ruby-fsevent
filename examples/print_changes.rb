@@ -1,4 +1,6 @@
-require File.dirname(__FILE__) + '/../ext/fsevent'
+$LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib')
+$LOAD_PATH.unshift(File.dirname(__FILE__) + '/../ext')
+require 'fsevent'
 
 class PrintChange < FSEvent
   def on_change(directories)
