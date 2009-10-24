@@ -99,6 +99,9 @@ static VALUE t_start(VALUE self) {
 }
 
 static VALUE t_stop(VALUE self) {
+  FSEventStreamStop(stream);
+  FSEventStreamInvalidate(stream);
+  FSEventStreamRelease(stream);
   CFRunLoopStop(CFRunLoopGetCurrent());
   return self;
 }
