@@ -117,6 +117,11 @@ void delegate_signal_to_ruby(int signal) {
     ruby_default_signal(signal);
   }
 }
+
+void register_signal_delegation() {
+  int i;
+  for(i = 0; i < 33; i++) { // Signal.list.values.size yields 32 different signals
+    (void) signal(i, delegate_signal_to_ruby);
   }
 }
 
@@ -135,6 +140,5 @@ void Init_fsevent() {
   rb_define_attr(fsevent_class, "latency", 1, 1);
   rb_define_attr(fsevent_class, "registered_directories", 1, 1);
 
-  (void) signal(SIGINT, delegate_signal_to_ruby);
-  (void) signal(SIGQUIT, delegate_signal_to_ruby);
+  register_signal_delegation();
 }
