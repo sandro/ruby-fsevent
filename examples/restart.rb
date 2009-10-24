@@ -19,7 +19,7 @@ class Restart < FSEvent
   end
 end
 
-Signal.trap("INT"){ puts 'hi int'}
+Signal.trap("INT"){ puts "\nCustom INT handler called."; exit }
 
 restarter = Restart.new
 restarter.watch_directories "#{Dir.pwd}/examples"
