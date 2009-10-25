@@ -6,10 +6,9 @@ class Restart < FSEvent
   def on_change(directories)
     puts "Detected change in: #{directories.inspect}"
     unless @restarted
-      self.stop
       @restarted = true
       self.watch_directories "#{Dir.pwd}/spec"
-      self.start
+      self.restart
     end
   end
 
