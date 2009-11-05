@@ -24,6 +24,14 @@ describe FSEvent do
     end
   end
 
+  describe "#on_change" do
+    it "raises NotImplementedError" do
+      expect do
+        subject.on_change(nil)
+      end.to raise_error(NotImplementedError)
+    end
+  end
+
   describe "API" do
     it { should respond_to(:on_change) }
     it { should respond_to(:start) }

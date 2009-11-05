@@ -76,7 +76,8 @@ static VALUE t_init(VALUE self) {
 }
 
 static VALUE t_on_change(VALUE self, VALUE original_directory_name) {
-  return Qnil;
+  rb_raise(rb_eNotImpError, "You must define #on_change in your subclass");
+  return self;
 }
 
 static VALUE t_watch_directories(VALUE self, VALUE directories) {
