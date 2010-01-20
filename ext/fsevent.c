@@ -35,12 +35,12 @@ void callback(
 void watch_directory(VALUE self) {
   VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
   int i, dir_size;
-  dir_size = RARRAY(rb_registered_directories)->len;
+  dir_size = RARRAY_LEN(rb_registered_directories);
 
-  VALUE *rb_dir_names = RARRAY(rb_registered_directories)->ptr;
+  VALUE *rb_dir_names = RARRAY_PTR(rb_registered_directories);
   CFStringRef dir_names[dir_size];
   for (i = 0; i < dir_size; i++) {
-    dir_names[i] = CFStringCreateWithCString(NULL, (char *)RSTRING(rb_dir_names[i])->ptr, kCFStringEncodingUTF8);
+    dir_names[i] = CFStringCreateWithCString(NULL, (char *)RSTRING_PTR(rb_dir_names[i]), kCFStringEncodingUTF8);
   }
 
   CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&dir_names, dir_size, NULL);
@@ -82,7 +82,7 @@ static VALUE t_on_change(VALUE self, VALUE original_directory_name) {
 
 static VALUE t_watch_directories(VALUE self, VALUE directories) {
   if (TYPE(directories) == T_ARRAY) {
-    rb_iv_set(self, "@registered_directories", rb_ary_new4(RARRAY(directories)->len, RARRAY(directories)->ptr));
+    rb_iv_set(self, "@registered_directories", rb_ary_new4(RARRAY_LEN(directories), RARRAY_PTR(directories)));
   }
   else {
     rb_iv_set(self, "@registered_directories", rb_ary_new3(1, directories));
