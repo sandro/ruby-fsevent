@@ -6,11 +6,44 @@ A native extension exposing the OS X FSEvent API.
 Register the directories you want to watch, create a custom callback, and your
 callback will fire everytime a change occurs in the registered directories.
 
-I'm tired of recompiling RubyCocoa just get Rspactor working whenever I switch Ruby versions. Hopefully, this gem will break that dependency.
+Example
+-------
+    class PrintChange < FSEvent
+      def on_change(directories)
+        puts "Detected change in: #{directories.inspect}"
+      end
+    end
+
+    printer = PrintChange.new
+    printer.watch_directories %W(#{Dir.pwd} /tmp)
+    printer.start
+
+
+Examine ruby-fsevent/examples
+-----------------------------
+1. rake make
+2. ruby examples/print_changes.rb
+3. Notice that the examples directory and the /tmp directory are being
+   monitored
+4. Make a change to either directory and watch the callback fire
+
+TODO
+----
+* Documentation
+* Add ability to register a block as a callback handler, on_change would then
+  call the block. This removes the need for subclassing.
+* Expose an optional ruby library to show file changes, not just directory
+  changes
+* Do more in Ruby, less in C
+
+Reasoning
+---------
+I'm tired of recompiling RubyCocoa just get Rspactor working whenever I switch
+Ruby versions. Hopefully, this gem will break that dependency.
 
 Watchr and Kicker have recently grabbed my attention. They allow you to watch
-directories for changes and create custom event handlers. Unfortunately, Watchr
-has a 4-5 second delay when using it with Rev (recommended) before your
+directories for changes and create custom event handlers.  Unfortunately,
+Watchr has a 4-5 second delay when using it with Rev (recommended) before your
 callback is fires.  Without Rev, Watchr degrades to a 0.5 second Ruby loop
 which we all know is not resource-friendly. Now, Watchr could easily add native
 FSEvents as a new backend for Mac users.
@@ -22,19 +55,6 @@ and remove the need for RubyCocoa.
 With a generic, native interface to the FSEvent API we, as Rubyists can harness
 the power of OSX FSEvents without depending on RubyCocoa.
 
-Demo
-----
-
-1. rake make
-2. ruby examples/print_changes.rb
-3. Notice that the examples directory and the /tmp directory are being monitored
-4. Make a change to either directory and watch the callback fire
-
-TODO
-----
-
-* Add ability to register a block as a callback handler, on_change would then
-call the block. This removes the need for subclassing.
 
 Note on Patches/Pull Requests
 -----------------------------
