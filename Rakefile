@@ -12,7 +12,7 @@ begin
     gem.email = "sandro.turriate@gmail.com"
     gem.homepage = "http://github.com/sandro/ruby-fsevent"
     gem.authors = ["Sandro Turriate"]
-    gem.add_development_dependency "rspec", '1.2.9'
+    gem.add_development_dependency "rspec", '>= 1.2.9'
     gem.require_paths = %w(lib ext)
     gem.extensions << 'ext/extconf.rb'
     # gem is a Gem::Specification... see http://www.rubygems.org/read/chapter/20 for additional settings

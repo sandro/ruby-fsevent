@@ -1,10 +1,15 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
+require 'tmpdir'
 
 describe FSEvent do
   describe "accessors" do
-    it "reads and writes registered_directories" do
-      subject.registered_directories = %w(one two)
-      subject.registered_directories.should == %w(one two)
+    it "reads and writes directories" do
+      subject.directories = %w(one two)
+      subject.directories.should == %w(one two)
+
+      lambda { subject.watch Hash.new }.should raise_error(
+        TypeError, 'directories must be given as a String or an Array of strings'
+      )
     end
 
     it "reads and writes latency" do
@@ -13,29 +18,100 @@ describe FSEvent do
     end
   end
 
-  describe "#watch_directories" do
-    it "register a single directory" do
-      subject.watch_directories '/Users'
-      subject.registered_directories.should == ['/Users']
+  describe "iniitialization" do
+    it "accepts a directory" do
+      fs = FSEvent.new '/Users'
+      fs.directories.should == %w(/Users)
+
+      fs = FSEvent.new %w(/Users /tmp)
+      fs.directories.should == %w(/Users /tmp)
     end
-    it "registers an array of directories" do
-      subject.watch_directories %w(/Users /tmp)
-      subject.registered_directories.should == %w(/Users /tmp)
+
+    it "accepts a latency" do
+      fs = FSEvent.new 3.14159
+      fs.latency.should == 3.14159
+    end
+
+    it "accepts both latency and directories" do
+      fs = FSEvent.new %w(/tmp), 3.14159
+      fs.directories.should == %w(/tmp)
+      fs.latency.should == 3.14159
+    end
+
+    it "complains about unrecognized types" do
+      lambda { FSEvent.new('/tmp', 'foo') }.should raise_error(
+        TypeError, 'latency must be a Numeric value'
+      )
+
+      lambda { FSEvent.new({}, 1) }.should raise_error(
+        TypeError, 'directories must be given as a String or an Array of strings'
+      )
     end
   end
 
-  describe "#on_change" do
-    it "raises NotImplementedError" do
-      expect do
-        subject.on_change(nil)
-      end.to raise_error(NotImplementedError)
+  describe "#watch" do
+    it "register a single directory" do
+      subject.watch '/Users'
+      subject.directories.should == ['/Users']
+    end
+
+    it "registers an array of directories" do
+      subject.watch %w(/Users /tmp)
+      subject.directories.should == %w(/Users /tmp)
+    end
+
+    it "clears the array of directories" do
+      subject.directories = %w(/Users /tmp)
+      subject.directories.should == %w(/Users /tmp)
+      subject.watch nil
+      subject.directories.should be_nil
     end
   end
 
   describe "API" do
-    it { should respond_to(:on_change) }
+    it { should respond_to(:watch) }
+    it { should respond_to(:changes) }
+    it { should respond_to(:changes?) }
     it { should respond_to(:start) }
     it { should respond_to(:stop) }
     it { should respond_to(:restart) }
+    it { should respond_to(:running?) }
   end
+
+  describe "when monitoring a directory for changes" do
+    before(:all) {
+      @dir = '/private' + Dir.tmpdir + "/#$$/"
+      FileUtils.mkdir_p @dir
+    }
+    after(:all) { FileUtils.rm_rf @dir }
+
+    before(:each) { @subject = FSEvent.new @dir, 0.1 }
+    after(:each) { @subject.stop }
+
+    it "picks up changes when running" do
+      subject.should_not be_running
+      subject.start
+      subject.should be_running
+      subject.changes?.should be_false
+
+      FileUtils.touch(@dir + 'test1.txt')
+      subject.changes(0.3).should == [@dir]
+    end
+
+    it "does not pick up changes when stopped" do
+      subject.should_not be_running
+
+      FileUtils.touch(@dir + 'test2.txt')
+      subject.changes(0.3).should be_nil
+
+      subject.start
+      subject.should be_running
+      subject.changes(0.3).should be_nil
+
+      FileUtils.touch(@dir + 'test3.txt')
+      subject.changes(0.3).should == [@dir]
+    end
+  end
+
 end
+
