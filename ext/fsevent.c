@@ -163,41 +163,59 @@ fsevent_start_run_loop( VALUE self ) {
   pthread_exit(NULL);
 }
 
-// FIXME: accept mutiple optional args (directories and latency)
+static VALUE fsevent_watch(VALUE, VALUE);
+
 static VALUE
-fsevent_init( VALUE self ) {
-  rb_iv_set(self, "@directories", Qnil);
-  rb_iv_set(self, "@latency", rb_float_new(0.5));
+fsevent_init( int argc, VALUE* argv, VALUE self ) {
+  VALUE tmp1, tmp2;
+  switch (rb_scan_args( argc, argv, "02", &tmp1, &tmp2 )) {
+  case 1:
+    if (TYPE(tmp1) == T_FLOAT || TYPE(tmp1) == T_FIXNUM) rb_iv_set(self, "@latency", tmp1);
+    else fsevent_watch(self, tmp1);
+    break;
+  case 2:
+    fsevent_watch(self, tmp1);
+    if (TYPE(tmp2) == T_FLOAT || TYPE(tmp2) == T_FIXNUM) rb_iv_set(self, "@latency", tmp2);
+    else rb_raise(rb_eTypeError, "latency must be a Numeric value" );
+    break;
+  default:
+    rb_iv_set(self, "@latency", rb_float_new(0.5));
+    rb_iv_set(self, "@directories", Qnil);
+  }
   return self;
 }
 
-// FIXME: needs to accept an optional timeout
+/**
+ *
+ */
 static VALUE
-fsevent_changes( VALUE self ) {
-  double latency = NUM2DBL(rb_iv_get(self, "@latency"));
-  FSEvent fsevent = fsevent_struct(self);
+fsevent_changes( int argc, VALUE* argv, VALUE self ) {
+  VALUE tmp = Qnil;
+  struct timeval tv;
+  struct timeval *tv_ptr = 0;
+
+  rb_scan_args( argc, argv, "01", &tmp );
+  if (!NIL_P(tmp)) {
+    double timeout = NUM2DBL(tmp);
+    tv.tv_sec = (int) floor(timeout);
+    tv.tv_usec = (int) ((timeout - tv.tv_sec) * 1E6);
+    tv_ptr = &tv;
+  }
+
   fd_set set;
-  struct timeval timeout;
-  int io, rv;
-  long length = 0;
-  VALUE string = Qundef;
-
-  io = fsevent->pipes[0];
+  int io = fsevent_struct(self)->pipes[0];
   FD_SET(io, &set);
-
-  // put call to select here
-  timeout.tv_sec = (int) floor(latency);
-  timeout.tv_usec = (int) ((latency - timeout.tv_sec) * 1E6);
-  rv = select(io+1, &set, NULL, NULL, &timeout);
+  int rv = select(io+1, &set, NULL, NULL, tv_ptr);
 
   if (rv < 0) rb_sys_fail("could not receive events from pipe");
   if (0 == rv) return Qnil;
 
   // get the size of the data passed into the pipe
+  long length = 0;
   read(io, &length, sizeof(long));
 
   // read the data from the pipe
-  string = rb_str_buf_new(length);
+  VALUE string = rb_str_buf_new(length);
   read(io, RSTRING_PTR(string), length);
 
   RSTRING(string)->len = length;
@@ -209,6 +227,23 @@ fsevent_changes( VALUE self ) {
 
   // split the string into an array
   return rb_str_split(string, "\n");
+}
+
+static VALUE
+fsevent_has_changes( VALUE self ) {
+  struct timeval tv;
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
+
+  fd_set set;
+  int io = fsevent_struct(self)->pipes[0];
+  FD_SET(io, &set);
+  int rv = select(io+1, &set, NULL, NULL, &tv);
+
+  if (rv < 0) rb_sys_fail("could not receive events from pipe");
+  if (0 == rv) return Qfalse;
+
+  return Qtrue;
 }
 
 static VALUE
@@ -259,27 +294,32 @@ fsevent_restart( VALUE self ) {
   return self;
 }
 
+static VALUE
+fsevent_is_running( VALUE self ) {
+  FSEvent fsevent = fsevent_struct(self);
+  if (fsevent->thread) return Qtrue;
+  return Qfalse;
+}
+
 void Init_fsevent() {
-
-  fsevent_class = rb_define_class("FSEvent", rb_cObject);
+  fsevent_class = rb_define_class( "FSEvent", rb_cObject );
   rb_define_alloc_func( fsevent_class, fsevent_struct_allocate );
-  rb_define_method( fsevent_class, "initialize", fsevent_init, 0);
-
+  rb_define_method( fsevent_class, "initialize", fsevent_init, -1 );
 
   rb_define_attr( fsevent_class, "latency",     1, 1 );
   rb_define_attr( fsevent_class, "directories", 1, 0 );
 
-  // changed_directories? changes?
-  // running?
-  // changes(timeout = @latency)
-  rb_define_method( fsevent_class, "watch",    fsevent_watch,   1 );
-  rb_define_method( fsevent_class, "changes",  fsevent_changes, 0 );
-  rb_define_method( fsevent_class, "stop",     fsevent_stop,    0 );
-  rb_define_method( fsevent_class, "start",    fsevent_start,   0 );
-  rb_define_method( fsevent_class, "restart",  fsevent_restart, 0 );
+  rb_define_method( fsevent_class, "watch",     fsevent_watch,        1 );
+  rb_define_method( fsevent_class, "changes",   fsevent_changes,     -1 );
+  rb_define_method( fsevent_class, "changes?",  fsevent_has_changes,  0 );
+  rb_define_method( fsevent_class, "stop",      fsevent_stop,         0 );
+  rb_define_method( fsevent_class, "start",     fsevent_start,        0 );
+  rb_define_method( fsevent_class, "restart",   fsevent_restart,      0 );
+  rb_define_method( fsevent_class, "running?",  fsevent_is_running,   0 );
 
-  rb_define_alias( fsevent_class, "directories=",        "watch"   );
-  rb_define_alias( fsevent_class, "watch_directories",   "watch"   );
-  rb_define_alias( fsevent_class, "changed_directories", "changes" );
+  rb_define_alias( fsevent_class, "directories=",          "watch"    );
+  rb_define_alias( fsevent_class, "watch_directories",     "watch"    );
+  rb_define_alias( fsevent_class, "changed_directories",   "changes"  );
+  rb_define_alias( fsevent_class, "changed_directories?",  "changes?" );
 }
 
