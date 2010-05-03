@@ -1,3 +1,4 @@
+
 #include <ruby.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,54 +11,145 @@
  * http://github.com/alandipert/fswatch
 */
 
-FSEventStreamRef stream;
 VALUE fsevent_class;
 
-void callback(
+struct FSEvent_Struct {
+  int pipes[2];
+  pthread_t thread;
+  FSEventStreamRef stream;
+  CFRunLoopRef run_loop;
+};
+typedef struct FSEvent_Struct* FSEvent;
+
+static void
+fsevent_struct_release( FSEvent fsevent )
+{
+  if (NULL == fsevent) return;
+
+  if (fsevent->run_loop) {
+    CFRunLoopStop(fsevent->run_loop);
+    CFRelease(fsevent->run_loop);
+  }
+  fsevent->run_loop = 0;
+
+  if (fsevent->stream) {
+    FSEventStreamStop(fsevent->stream);
+    FSEventStreamInvalidate(fsevent->stream);
+    FSEventStreamRelease(fsevent->stream);
+  }
+  fsevent->stream = 0;
+
+  fsevent->thread = 0;
+}
+
+static void
+fsevent_struct_free( void* ptr ) {
+  if (NULL == ptr) return;
+
+  FSEvent fsevent = (FSEvent) ptr;
+  fsevent_struct_release(fsevent);
+
+  if (fsevent->pipes[0]) {close(fsevent->pipes[0]);}
+  if (fsevent->pipes[1]) {close(fsevent->pipes[1]);}
+  fsevent->pipes[0] = 0;
+  fsevent->pipes[1] = 0;
+
+  xfree(fsevent);
+}
+
+static VALUE
+fsevent_struct_allocate( VALUE klass ) {
+  FSEvent fsevent = ALLOC_N( struct FSEvent_Struct, 1 );
+
+  fsevent->thread = 0;
+  fsevent->stream = 0;
+  fsevent->run_loop = 0;
+
+  if (pipe(fsevent->pipes) == -1) { rb_sys_fail(0); }
+
+  return Data_Wrap_Struct( klass, NULL, fsevent_struct_free, fsevent );
+}
+
+static FSEvent
+fsevent_struct( VALUE self ) {
+  FSEvent fsevent;
+
+  if (TYPE(self) != T_DATA
+  ||  RDATA(self)->dfree != (RUBY_DATA_FUNC) fsevent_struct_free) {
+    rb_raise(rb_eTypeError, "expecting an FSEvent object");
+  }
+  Data_Get_Struct( self, struct FSEvent_Struct, fsevent );
+  return fsevent;
+}
+
+static void
+fsevent_callback(
   ConstFSEventStreamRef streamRef,
-  void *context,
+  void* self,
   size_t numEvents,
-  void *eventPaths,
+  void* eventPaths,
   const FSEventStreamEventFlags eventFlags[],
   const FSEventStreamEventId eventIds[]
 ) {
-  VALUE self = (VALUE)context;
-  int i;
-  char **paths = eventPaths;
-  VALUE rb_paths[numEvents];
-  for (i = 0; i < numEvents; i++) {
-    VALUE name = rb_str_new2(paths[i]);
-    rb_paths[i] = name;
+  char** paths = eventPaths;
+  FSEvent fsevent = fsevent_struct((VALUE) self);
+  int ii, io;
+  long length = 0;
+
+  io = fsevent->pipes[1];
+
+  for (ii=0; ii<numEvents; ii++) { length += strlen(paths[ii]); }
+  length += numEvents - 1;
+
+  // send the length of the paths down the pipe
+  write(io, (char*) &length, sizeof(long));
+
+  // send each path down the pipe separated by newlines
+  for (ii=0; ii<numEvents; ii++) {
+    if (ii > 0) { write(io, "\n", 1); }
+    write(io, paths[ii], strlen(paths[ii]));
   }
-  rb_funcall(self, rb_intern("on_change"), 1, rb_ary_new4(numEvents, rb_paths));
 }
 
-void watch_directory(VALUE self) {
-  VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
-  int i, dir_size;
-  dir_size = RARRAY_LEN(rb_registered_directories);
+static void
+fsevent_start_run_loop( VALUE self ) {
+  // ignore all signals in this thread
+  sigset_t all_signals;
+  sigfillset(&all_signals);
+  pthread_sigmask(SIG_BLOCK, &all_signals, 0);
 
-  VALUE *rb_dir_names = RARRAY_PTR(rb_registered_directories);
-  CFStringRef dir_names[dir_size];
-  for (i = 0; i < dir_size; i++) {
-    dir_names[i] = CFStringCreateWithCString(NULL, (char *)RSTRING_PTR(rb_dir_names[i]), kCFStringEncodingUTF8);
+  FSEvent fsevent = fsevent_struct(self);
+
+  // convert our registered directory array into an OS X array of references
+  VALUE ary = rb_iv_get(self, "@directories");
+  int ii, length;
+  length = RARRAY_LEN(ary);
+
+  CFStringRef paths[length];
+  for (ii=0; ii<length; ii++) {
+    paths[ii] =
+        CFStringCreateWithCString(
+            NULL,
+            (char*) RSTRING_PTR(RARRAY_PTR(ary)[ii]),
+            kCFStringEncodingUTF8
+        );
   }
 
-  CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&dir_names, dir_size, NULL);
-
-
-  VALUE rb_latency = rb_iv_get(self, "@latency");
-  CFAbsoluteTime latency = NUM2DBL(rb_latency);
+  CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **) &paths, length, NULL);
+  CFAbsoluteTime latency = NUM2DBL(rb_iv_get(self, "@latency"));
 
   FSEventStreamContext context;
   context.version = 0;
-  context.info = (VALUE *)self;
+  context.info = (void *) self;
   context.retain = NULL;
   context.release = NULL;
   context.copyDescription = NULL;
 
-  stream = FSEventStreamCreate(NULL,
-    &callback,
+  fsevent->run_loop = CFRunLoopGetCurrent();
+  CFRetain(fsevent->run_loop);
+
+  fsevent->stream = FSEventStreamCreate(NULL,
+    &fsevent_callback,
     &context,
     pathsToWatch,
     kFSEventStreamEventIdSinceNow,
@@ -65,84 +157,129 @@ void watch_directory(VALUE self) {
     kFSEventStreamCreateFlagNone
   );
 
-  FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-  FSEventStreamStart(stream);
+  FSEventStreamScheduleWithRunLoop(fsevent->stream, fsevent->run_loop, kCFRunLoopDefaultMode);
+  FSEventStreamStart(fsevent->stream);
   CFRunLoopRun();
+  pthread_exit(NULL);
 }
 
-static VALUE t_init(VALUE self) {
+// FIXME: accept mutiple optional args (directories and latency)
+static VALUE
+fsevent_init( VALUE self ) {
+  rb_iv_set(self, "@directories", Qnil);
   rb_iv_set(self, "@latency", rb_float_new(0.5));
   return self;
 }
 
-static VALUE t_on_change(VALUE self, VALUE original_directory_name) {
-  rb_raise(rb_eNotImpError, "You must define #on_change in your subclass");
+// FIXME: needs to accept an optional timeout
+static VALUE
+fsevent_changes( VALUE self ) {
+  double latency = NUM2DBL(rb_iv_get(self, "@latency"));
+  FSEvent fsevent = fsevent_struct(self);
+  fd_set set;
+  struct timeval timeout;
+  int io, rv;
+  long length = 0;
+  VALUE string = Qundef;
+
+  io = fsevent->pipes[0];
+  FD_SET(io, &set);
+
+  // put call to select here
+  timeout.tv_sec = (int) floor(latency);
+  timeout.tv_usec = (int) ((latency - timeout.tv_sec) * 1E6);
+  rv = select(io+1, &set, NULL, NULL, &timeout);
+
+  if (rv < 0) rb_sys_fail("could not receive events from pipe");
+  if (0 == rv) return Qnil;
+
+  // get the size of the data passed into the pipe
+  read(io, &length, sizeof(long));
+
+  // read the data from the pipe
+  string = rb_str_buf_new(length);
+  read(io, RSTRING_PTR(string), length);
+
+  RSTRING(string)->len = length;
+  RSTRING(string)->ptr[length] = '\0';
+
+  // FIXME: ifdef for switching between 1.8 and 1.9 strings
+  //RSTRING(str)->as.heap.len = length;
+  //RSTRING(str)->as.heap.ptr[length] = '\0';
+
+  // split the string into an array
+  return rb_str_split(string, "\n");
+}
+
+static VALUE
+fsevent_watch( VALUE self, VALUE directories ) {
+  switch (TYPE(directories)) {
+  case T_ARRAY:
+    rb_iv_set(self, "@directories", rb_ary_new4(RARRAY_LEN(directories), RARRAY_PTR(directories)));
+    break;
+  case T_STRING:
+    rb_iv_set(self, "@directories", rb_ary_new3(1, directories));
+    break;
+  case T_NIL:
+    rb_iv_set(self, "@directories", Qnil);
+    break;
+  default:
+    rb_raise(rb_eTypeError,
+          "directories must be given as a String or an Array of strings");
+  }
+  return rb_iv_get(self, "@directories");
+}
+
+static VALUE
+fsevent_start( VALUE self ) {
+  FSEvent fsevent = fsevent_struct(self);
+  if (fsevent->thread) return self;
+
+  VALUE ary = rb_iv_get(self, "@directories");
+  if (NIL_P(ary)) rb_raise(rb_eRuntimeError, "no directories to watch");
+  Check_Type(ary, T_ARRAY);
+
+  int rv = pthread_create(&fsevent->thread, NULL, fsevent_start_run_loop, (void*) self);
+  if (0 != rv) rb_raise(rb_eRuntimeError, "could not start FSEvent thread");
+
   return self;
 }
 
-static VALUE t_watch_directories(VALUE self, VALUE directories) {
-  if (TYPE(directories) == T_ARRAY) {
-    rb_iv_set(self, "@registered_directories", rb_ary_new4(RARRAY_LEN(directories), RARRAY_PTR(directories)));
-  }
-  else {
-    rb_iv_set(self, "@registered_directories", rb_ary_new3(1, directories));
-  }
-  VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
-  return rb_registered_directories;
-}
-
-static VALUE t_start(VALUE self) {
-  VALUE rb_registered_directories = rb_iv_get(self, "@registered_directories");
-  Check_Type(rb_registered_directories, T_ARRAY);
-
-  watch_directory(self);
+static VALUE
+fsevent_stop( VALUE self ) {
+  FSEvent fsevent = fsevent_struct(self);
+  fsevent_struct_release(fsevent);
   return self;
 }
 
-static VALUE t_stop(VALUE self) {
-  FSEventStreamStop(stream);
-  FSEventStreamInvalidate(stream);
-  FSEventStreamRelease(stream);
-  CFRunLoopStop(CFRunLoopGetCurrent());
+static VALUE
+fsevent_restart( VALUE self ) {
+  fsevent_stop(self);
+  fsevent_start(self);
   return self;
-}
-
-static VALUE t_restart(VALUE self) {
-  t_stop(self);
-  watch_directory(self);
-  return self;
-}
-
-void delegate_signal_to_ruby(int signal) {
-  VALUE signal_module = rb_const_get(rb_cObject, rb_intern("Signal"));
-  if (rb_funcall(signal_module, rb_intern("handles?"), 1, INT2FIX(signal)) == Qtrue) {
-    rb_funcall(signal_module, rb_intern("handle"), 1, INT2FIX(signal));
-  }
-  else {
-    ruby_default_signal(signal);
-  }
-}
-
-void register_signal_delegation() {
-  int i;
-  for(i = 0; i < 33; i++) { // Signal.list.values.size yields 32 different signals
-    (void) signal(i, delegate_signal_to_ruby);
-  }
 }
 
 void Init_fsevent() {
-  rb_require("fsevent/signal_ext");
 
   fsevent_class = rb_define_class("FSEvent", rb_cObject);
-  rb_define_method(fsevent_class, "initialize", t_init, 0);
-  rb_define_method(fsevent_class, "on_change", t_on_change, 1);
-  rb_define_method(fsevent_class, "watch_directories", t_watch_directories, 1);
-  rb_define_method(fsevent_class, "start", t_start, 0);
-  rb_define_method(fsevent_class, "stop", t_stop, 0);
-  rb_define_method(fsevent_class, "restart", t_restart, 0);
+  rb_define_alloc_func( fsevent_class, fsevent_struct_allocate );
+  rb_define_method( fsevent_class, "initialize", fsevent_init, 0);
 
-  rb_define_attr(fsevent_class, "latency", 1, 1);
-  rb_define_attr(fsevent_class, "registered_directories", 1, 1);
 
-  register_signal_delegation();
+  rb_define_attr( fsevent_class, "latency",     1, 1 );
+  rb_define_attr( fsevent_class, "directories", 1, 0 );
+
+  // changed_directories? changes?
+  // running?
+  // changes(timeout = @latency)
+  rb_define_method( fsevent_class, "watch",    fsevent_watch,   1 );
+  rb_define_method( fsevent_class, "changes",  fsevent_changes, 0 );
+  rb_define_method( fsevent_class, "stop",     fsevent_stop,    0 );
+  rb_define_method( fsevent_class, "start",    fsevent_start,   0 );
+  rb_define_method( fsevent_class, "restart",  fsevent_restart, 0 );
+
+  rb_define_alias( fsevent_class, "directories=",        "watch"   );
+  rb_define_alias( fsevent_class, "watch_directories",   "watch"   );
+  rb_define_alias( fsevent_class, "changed_directories", "changes" );
 }
+
