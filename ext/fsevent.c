@@ -22,6 +22,10 @@ struct FSEvent_Struct {
 };
 typedef struct FSEvent_Struct* FSEvent;
 
+// =========================================================================
+// This method cleans up the resources used by our fsevent notifier. The run
+// loop is stopped and released, and the notification stream is stopped and
+// released. All our internal references are set to null.
 static void
 fsevent_struct_release( FSEvent fsevent )
 {
@@ -43,6 +47,9 @@ fsevent_struct_release( FSEvent fsevent )
   fsevent->thread = 0;
 }
 
+// This method is called by the ruby garbage collector during the sweep phase
+// of the garbage collection cycle. Memory allocated from the heap is freed
+// and resources are released back to the mach kernel.
 static void
 fsevent_struct_free( void* ptr ) {
   if (NULL == ptr) return;
@@ -58,6 +65,10 @@ fsevent_struct_free( void* ptr ) {
   xfree(fsevent);
 }
 
+// This method is called by the ruby interpreter when a new fsevent instance
+// needs to be created. Memory is allocated from the heap and initialized to
+// null values. A pipe is created at allocation time and lives for the
+// duration of the instance.
 static VALUE
 fsevent_struct_allocate( VALUE klass ) {
   FSEvent fsevent = ALLOC_N( struct FSEvent_Struct, 1 );
@@ -71,6 +82,7 @@ fsevent_struct_allocate( VALUE klass ) {
   return Data_Wrap_Struct( klass, NULL, fsevent_struct_free, fsevent );
 }
 
+// A helper method used to extract the fsevent C struct from the ruby "self" VALUE.
 static FSEvent
 fsevent_struct( VALUE self ) {
   FSEvent fsevent;
@@ -83,6 +95,19 @@ fsevent_struct( VALUE self ) {
   return fsevent;
 }
 
+// This method is called by the mach kernel to notify our instance that a
+// filesystem change has occurred in one of the directories we are watching.
+//
+// The reference to our FSEvent ruby object is passed in as the second
+// parameter. We extract the underlying fsevent struct from the ruby object
+// and grab the write end of the pipe. The "eventPaths" we received from the
+// kernel are written to this pipe as a single string with a newline "\n"
+// character between each path.
+//
+// The user will call the "changes" method on the ruby oejct in order to read
+// these paths out from the pipe when needed. The use of the pipe allows 1)
+// the callback to return quickly to the kernel, and 2) for notifications to
+// be queued in the pipe so they are not missed by the main ruby thread.
 static void
 fsevent_callback(
   ConstFSEventStreamRef streamRef,
@@ -112,6 +137,9 @@ fsevent_callback(
   }
 }
 
+// Start execution of the Mac CoreFramework run loop. This method is spawned
+// inside a pthread so that the ruby interpreter is not blocked (the
+// CFRunLoopRun method never returns).
 static void*
 fsevent_start_run_loop( void* _self ) {
   VALUE self = (VALUE) _self;
@@ -168,6 +196,30 @@ fsevent_start_run_loop( void* _self ) {
 
 static VALUE fsevent_watch(VALUE, VALUE);
 
+
+// FSEvent ruby methods start here
+
+// =========================================================================
+/* call-seq:
+ *    FSEvent.new( )
+ *    FSEvent.new( directories )
+ *    FSEvent.new( latency )
+ *    FSEvent.new( directories, latency )
+ *
+ * Create a new FSEvent notifier instance configured to recieve notifications
+ * for the given _directories_ with a specific _latency_. After the notifier
+ * is created, you must call the +start+ method to begin receiving
+ * notifications.
+ *
+ * The _directories_ can be either a single path or an array of paths. Each
+ * directory and all its sub-directories will be monitored for file system
+ * modifications. The exact directory where the event occurred will be passed
+ * to the user when the +changes+ method is called.
+ *
+ * Clients can supply a _latency_ parameter that tells how long to wait after
+ * an event occurs before notifying; this reduces the volume of events and
+ * reduces the chance that the client will see an "intermediate" state.
+ */
 static VALUE
 fsevent_init( int argc, VALUE* argv, VALUE self ) {
   rb_iv_set(self, "@latency", rb_float_new(0.5));
@@ -188,8 +240,16 @@ fsevent_init( int argc, VALUE* argv, VALUE self ) {
   return self;
 }
 
-/**
+/* call-seq:
+ *    changes( timeout = nil )
  *
+ * Request the list of directory paths that have changed. This method will
+ * block until one of the monitoried directories has changed or until
+ * _timeout_ seconds have elapsed.
+ *
+ * Returns an array containing the directory paths where a file system event
+ * has occurred. If the _timeout_ is reached before any events occur then
+ * +nil+ is returned.
  */
 static VALUE
 fsevent_changes( int argc, VALUE* argv, VALUE self ) {
@@ -233,6 +293,16 @@ fsevent_changes( int argc, VALUE* argv, VALUE self ) {
   return rb_str_split(string, "\n");
 }
 
+/* call-seq:
+ *    changes?
+ *
+ * This method will return +true+ if the are file system events ready to be
+ * processed; when this method returns +true+, the FSEvent#changes method is
+ * guaranteed not to block.
+ *
+ * This method will return +false+ if there are no file system events
+ * available.
+ */
 static VALUE
 fsevent_has_changes( VALUE self ) {
   struct timeval tv;
@@ -250,6 +320,13 @@ fsevent_has_changes( VALUE self ) {
   return Qtrue;
 }
 
+/* call-seq:
+ *    directories = ['paths']
+ *    watch( directories )
+ *
+ * Set a single directory or an array of directories to be monitored by this
+ * fsevent notifier.
+ */
 static VALUE
 fsevent_watch( VALUE self, VALUE directories ) {
   switch (TYPE(directories)) {
@@ -269,6 +346,13 @@ fsevent_watch( VALUE self, VALUE directories ) {
   return rb_iv_get(self, "@directories");
 }
 
+/* call-seq:
+ *    start
+ *
+ * Start the event notification thread and begin receiving file system events
+ * from the operating system. Calling this method multiple times will have no
+ * ill affects. Returns the FSEvent notifier instance.
+ */
 static VALUE
 fsevent_start( VALUE self ) {
   FSEvent fsevent = fsevent_struct(self);
@@ -284,6 +368,12 @@ fsevent_start( VALUE self ) {
   return self;
 }
 
+/* call-seq:
+ *    stop
+ *
+ * Stop the event notification thread. Calling this method multiple times will
+ * have no ill affects. Returns the FSEvent notifier instance.
+ */
 static VALUE
 fsevent_stop( VALUE self ) {
   FSEvent fsevent = fsevent_struct(self);
@@ -291,6 +381,13 @@ fsevent_stop( VALUE self ) {
   return self;
 }
 
+/* call-seq:
+ *    restart
+ *
+ * Stop the event notification thread if running and then start it again. Any
+ * changes to the directories to watch or the latency will be picked up when
+ * the FSEvent notifier is restarted. Returns the FSEvent notifier instance.
+ */
 static VALUE
 fsevent_restart( VALUE self ) {
   fsevent_stop(self);
@@ -298,6 +395,12 @@ fsevent_restart( VALUE self ) {
   return self;
 }
 
+/* call-seq:
+ *    running?
+ *
+ * Returns +true+ if the notification thread is running. Returns +false+ if
+ * this is not the case.
+ */
 static VALUE
 fsevent_is_running( VALUE self ) {
   FSEvent fsevent = fsevent_struct(self);
@@ -305,6 +408,7 @@ fsevent_is_running( VALUE self ) {
   return Qfalse;
 }
 
+// =========================================================================
 void Init_fsevent() {
   fsevent_class = rb_define_class( "FSEvent", rb_cObject );
   rb_define_alloc_func( fsevent_class, fsevent_struct_allocate );
