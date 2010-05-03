@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <pthread.h>
 #include <CoreServices/CoreServices.h>
 
 /*
@@ -111,8 +112,10 @@ fsevent_callback(
   }
 }
 
-static void
-fsevent_start_run_loop( VALUE self ) {
+static void*
+fsevent_start_run_loop( void* _self ) {
+  VALUE self = (VALUE) _self;
+
   // ignore all signals in this thread
   sigset_t all_signals;
   sigfillset(&all_signals);
@@ -167,6 +170,9 @@ static VALUE fsevent_watch(VALUE, VALUE);
 
 static VALUE
 fsevent_init( int argc, VALUE* argv, VALUE self ) {
+  rb_iv_set(self, "@latency", rb_float_new(0.5));
+  rb_iv_set(self, "@directories", Qnil);
+
   VALUE tmp1, tmp2;
   switch (rb_scan_args( argc, argv, "02", &tmp1, &tmp2 )) {
   case 1:
@@ -178,9 +184,6 @@ fsevent_init( int argc, VALUE* argv, VALUE self ) {
     if (TYPE(tmp2) == T_FLOAT || TYPE(tmp2) == T_FIXNUM) rb_iv_set(self, "@latency", tmp2);
     else rb_raise(rb_eTypeError, "latency must be a Numeric value" );
     break;
-  default:
-    rb_iv_set(self, "@latency", rb_float_new(0.5));
-    rb_iv_set(self, "@directories", Qnil);
   }
   return self;
 }
@@ -215,15 +218,16 @@ fsevent_changes( int argc, VALUE* argv, VALUE self ) {
   read(io, &length, sizeof(long));
 
   // read the data from the pipe
-  VALUE string = rb_str_buf_new(length);
+  VALUE string = rb_str_buf_new(length+1);
   read(io, RSTRING_PTR(string), length);
 
+#if RUBY_VERSION_CODE < 190
   RSTRING(string)->len = length;
   RSTRING(string)->ptr[length] = '\0';
-
-  // FIXME: ifdef for switching between 1.8 and 1.9 strings
-  //RSTRING(str)->as.heap.len = length;
-  //RSTRING(str)->as.heap.ptr[length] = '\0';
+#else
+  RSTRING(string)->as.heap.len = length;
+  RSTRING(string)->as.heap.ptr[length] = '\0';
+#endif
 
   // split the string into an array
   return rb_str_split(string, "\n");
