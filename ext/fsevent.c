@@ -268,29 +268,33 @@ fsevent_changes( int argc, VALUE* argv, VALUE self ) {
   fd_set set;
   int io = fsevent_struct(self)->pipes[0];
   FD_SET(io, &set);
-  int rv = select(io+1, &set, NULL, NULL, tv_ptr);
+  int rv = rb_thread_select(io+1, &set, NULL, NULL, tv_ptr);
 
   if (rv < 0) rb_sys_fail("could not receive events from pipe");
   if (0 == rv) return Qnil;
 
-  // get the size of the data passed into the pipe
+  // messages are available
+  VALUE ary = Qnil;
+  VALUE string = rb_str_buf_new(0);
   long length = 0;
-  read(io, &length, sizeof(long));
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
 
-  // read the data from the pipe
-  VALUE string = rb_str_buf_new(length+1);
-  read(io, RSTRING_PTR(string), length);
+  // drain all messages from the pipe
+  while (rb_thread_select(io+1, &set, NULL, NULL, &tv) > 0) {
+    // read the message length from the pipe
+    read(io, &length, sizeof(long));
+    rb_str_resize(string, length);
 
-#if RUBY_VERSION_CODE < 190
-  RSTRING(string)->len = length;
-  RSTRING(string)->ptr[length] = '\0';
-#else
-  RSTRING(string)->as.heap.len = length;
-  RSTRING(string)->as.heap.ptr[length] = '\0';
-#endif
+    // read the message from the pipe
+    read(io, RSTRING_PTR(string), length);
 
-  // split the string into an array
-  return rb_str_split(string, "\n");
+    // split the string and concatenate the resuls to our return array
+    if (NIL_P(ary)) ary = rb_str_split(string, "\n");
+    else rb_ary_concat(ary, rb_str_split(string, "\n"));
+  }
+
+  return ary;
 }
 
 /* call-seq:
@@ -312,7 +316,7 @@ fsevent_has_changes( VALUE self ) {
   fd_set set;
   int io = fsevent_struct(self)->pipes[0];
   FD_SET(io, &set);
-  int rv = select(io+1, &set, NULL, NULL, &tv);
+  int rv = rb_thread_select(io+1, &set, NULL, NULL, &tv);
 
   if (rv < 0) rb_sys_fail("could not receive events from pipe");
   if (0 == rv) return Qfalse;
