@@ -250,6 +250,10 @@ fsevent_init( int argc, VALUE* argv, VALUE self ) {
  * Returns an array containing the directory paths where a file system event
  * has occurred. If the _timeout_ is reached before any events occur then
  * +nil+ is returned.
+ *
+ * All notifications will be read from the underlying buffer. If the same
+ * directory had multiple notifications between calls to this method, than
+ * that directory path will appear multiple times in the returned array.
  */
 static VALUE
 fsevent_changes( int argc, VALUE* argv, VALUE self ) {
