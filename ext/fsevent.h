@@ -25,6 +25,8 @@ struct FSEvent_Struct {
 typedef struct FSEvent_Struct* FSEvent;
 
 
+bool is_fsevent_struct _(( VALUE ));
+VALUE fsevent_rb_callback _(( VALUE, VALUE ));
 void cfrunloop_signal _(( CFRunLoop ));
 CFRunLoop cfrunloop_struct _(( VALUE ));
 

@@ -7,7 +7,6 @@
 */
 
 VALUE cfrunloop_class;
-ID id_callback;
 
 // =========================================================================
 
@@ -134,9 +133,9 @@ cfrunloop_dispatcher( void* self ) {
       if (length > 0) {
         rb_str_resize(msg, length);
         read(io, RSTRING_PTR(msg), length);
-        rb_funcall2(obj, id_callback, 1, &msg);
+        fsevent_rb_callback(obj, msg);
       } else {
-        rb_funcall2(obj, id_callback, 0, 0);
+        fsevent_rb_callback(obj, Qnil);
       }
     }
   }
@@ -207,8 +206,6 @@ cfrunloop_is_active( VALUE self ) {
 
 // =========================================================================
 void Init_cfrunloop() {
-  id_callback = rb_intern("_callback");
-
   cfrunloop_class = rb_define_class( "CFRunLoop", rb_cObject );
 
   rb_define_alloc_func( cfrunloop_class, cfrunloop_struct_allocate );

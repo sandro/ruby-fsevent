@@ -1,6 +1,11 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 require 'tmpdir'
 
+DirsArray = Class.new(FSEvent) do
+  def dirs() @dirs ||= []; end
+  def on_change( ary ) dirs.concat ary; end
+end
+
 describe FSEvent do
   describe "accessors" do
     it "reads and writes directories" do
@@ -70,10 +75,8 @@ describe FSEvent do
 
   describe "API" do
     it { should respond_to(:watch) }
-    it { should respond_to(:changes) }
-    it { should respond_to(:changes?) }
-    it { should respond_to(:start) }
     it { should respond_to(:stop) }
+    it { should respond_to(:start) }
     it { should respond_to(:restart) }
     it { should respond_to(:running?) }
   end
@@ -85,31 +88,35 @@ describe FSEvent do
     }
     after(:all) { FileUtils.rm_rf @dir }
 
-    before(:each) { @subject = FSEvent.new @dir, 0.1 }
+    before(:each) { @subject = DirsArray.new @dir, 0.1 }
     after(:each) { @subject.stop }
 
     it "picks up changes when running" do
       subject.should_not be_running
       subject.start
       subject.should be_running
-      subject.changes?.should be_false
+      subject.dirs.should be_empty
 
       FileUtils.touch(@dir + 'test1.txt')
-      subject.changes(0.3).should == [@dir]
+      Thread.pass while subject.dirs.empty?
+      subject.dirs.should == [@dir]
     end
 
     it "does not pick up changes when stopped" do
       subject.should_not be_running
 
       FileUtils.touch(@dir + 'test2.txt')
-      subject.changes(0.3).should be_nil
+      Thread.pass
+      subject.dirs.should be_empty
 
       subject.start
       subject.should be_running
-      subject.changes(0.3).should be_nil
+      Thread.pass
+      subject.dirs.should be_empty
 
       FileUtils.touch(@dir + 'test3.txt')
-      subject.changes(0.3).should == [@dir]
+      Thread.pass while subject.dirs.empty?
+      subject.dirs.should == [@dir]
     end
   end
 

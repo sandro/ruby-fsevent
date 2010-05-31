@@ -53,17 +53,41 @@ fsevent_struct_allocate( VALUE klass ) {
   return Data_Wrap_Struct( klass, NULL, fsevent_struct_free, fsevent );
 }
 
+// A helper method that will return true if the given VALUE is a
+// fsevent_strucct. Returns false if this is not the case.
+bool
+is_fsevent_struct( VALUE self ) {
+  return TYPE(self) == T_DATA && RDATA(self)->dfree == (RUBY_DATA_FUNC) fsevent_struct_free;
+}
+
 // A helper method used to extract the fsevent C struct from the ruby "self" VALUE.
 static FSEvent
 fsevent_struct( VALUE self ) {
   FSEvent fsevent;
 
-  if (TYPE(self) != T_DATA
-  ||  RDATA(self)->dfree != (RUBY_DATA_FUNC) fsevent_struct_free) {
-    rb_raise(rb_eTypeError, "expecting an FSEvent object");
-  }
+  if (!is_fsevent_struct(self)) rb_raise(rb_eTypeError, "expecting an FSEvent object");
   Data_Get_Struct( self, struct FSEvent_Struct, fsevent );
   return fsevent;
+}
+
+// This method is called by the ruby thread running in the CFRunLoop instance.
+// When the system level callback (see method below) is run, it writes
+// directory data to a pipe maintained by the CFRunLoop instance. The
+// CFRunLoop thread (a ruby thread) reads that data from the pipe and invokes
+// this callback.
+//
+// All we are doing here is safely passing information from the system level
+// pthread to an internal ruby thread.
+//
+// This method then invokes the "on_change" method implemented by the user.
+//
+VALUE
+fsevent_rb_callback( VALUE self, VALUE string ) {
+  if (!RTEST(string)) return self;
+
+  VALUE ary = rb_str_split(string, "\n");
+  rb_funcall2(self, id_on_change, 1, &ary);
+  return self;
 }
 
 // This method is called by the mach kernel to notify our instance that a
@@ -209,13 +233,6 @@ fsevent_init( int argc, VALUE* argv, VALUE self ) {
   return self;
 }
 
-static VALUE
-fsevent_rb_callback( VALUE self, VALUE string ) {
-  VALUE ary = rb_str_split(string, "\n");
-  rb_funcall2(self, id_on_change, 1, &ary);
-  return self;
-}
-
 /* call-seq:
  *    directories = ['paths']
  *    watch( directories )
@@ -311,7 +328,6 @@ void Init_fsevent() {
   rb_define_alloc_func( fsevent_class, fsevent_struct_allocate );
   rb_define_method( fsevent_class, "initialize", fsevent_init, -1 );
 
-  rb_define_attr( fsevent_class, "run_loop",    1, 0 );
   rb_define_attr( fsevent_class, "latency",     1, 1 );
   rb_define_attr( fsevent_class, "directories", 1, 0 );
 
@@ -320,8 +336,6 @@ void Init_fsevent() {
   rb_define_method( fsevent_class, "start",     fsevent_start,       0 );
   rb_define_method( fsevent_class, "restart",   fsevent_restart,     0 );
   rb_define_method( fsevent_class, "running?",  fsevent_is_running,  0 );
-
-  rb_define_private_method( fsevent_class, "_callback", fsevent_rb_callback, 1 );
 
   rb_define_alias( fsevent_class, "directories=",      "watch" );
   rb_define_alias( fsevent_class, "watch_directories", "watch" );
