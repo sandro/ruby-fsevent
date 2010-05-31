@@ -9,7 +9,10 @@
 VALUE cfrunloop_class;
 
 // =========================================================================
-
+// Signal any pthreads that are waiting on the conditional mutex. The various
+// ruby incarnations of runloop objects (timers, fsevents) call this method
+// in order to start the CFRunLoopRun method without blocking the ruby
+// interpreter.
 void
 cfrunloop_signal( CFRunLoop cfrunloop ) {
   pthread_mutex_lock(&cfrunloop->mutex);
@@ -17,6 +20,11 @@ cfrunloop_signal( CFRunLoop cfrunloop ) {
   pthread_mutex_unlock(&cfrunloop->mutex);
 }
 
+// Causes the current pthread to wait on the conditional mutex. This method is
+// called by our CFRunLoop object when it is waiting to enter the CFRunLoopRun
+// method. It is called from within a pthread separate from the ruby
+// interpreter. This prevents the interpreter from locking up inside the
+// CFRunLoopRun method (which never returns).
 static void
 cfrunloop_wait( CFRunLoop cfrunloop ) {
   pthread_mutex_lock(&cfrunloop->mutex);
@@ -83,6 +91,9 @@ cfrunloop_struct( VALUE self ) {
   return cfrunloop;
 }
 
+// Start the pthread that will eventually enter the CFRunLoopRun method. We
+// use a separate pthread so that the ruby interpreter does not lock up
+// indefinitely waiting for the CFRunLoopRun method to return.
 static void*
 cfrunloop_start_thread( void* self ) {
   CFRunLoop cfrunloop = (CFRunLoop) self;
@@ -106,7 +117,12 @@ cfrunloop_start_thread( void* self ) {
   }
 }
 
-
+// This method is used to create a ruby thread - the peer to the pthread
+// created in the method above.
+//
+// This thread reads messages from the pipe maintained by the CFRunLoop
+// object. Each message is dispatched to the event object (timer, fsevent)
+// that requested the notification.
 static VALUE
 cfrunloop_dispatcher( void* self ) {
   fd_set set;
@@ -145,6 +161,13 @@ cfrunloop_dispatcher( void* self ) {
 
 
 // =========================================================================
+/* call-seq:
+ *    CFRunLoop.new
+ *
+ * Creates a single CFRunLoop instance. Multiple invocations of the new method
+ * will always return the same instance; this instance is also expased via the
+ * class level CFRunLoop.instance method.
+ */
 static VALUE
 cfrunloop_new( VALUE klass ) {
   VALUE self = rb_iv_get( klass, "@instance" );
@@ -157,6 +180,13 @@ cfrunloop_new( VALUE klass ) {
   return self;
 }
 
+/* call-seq:
+ *    CFRunLoop.new
+ *
+ * Creates a single CFRunLoop instance. Multiple invocations of the new method
+ * will always return the same instance; this instance is also expased via the
+ * class level CFRunLoop.instance method.
+ */
 static VALUE
 cfrunloop_init( VALUE self ) {
   CFRunLoop cfrunloop = cfrunloop_struct(self);
@@ -175,6 +205,16 @@ cfrunloop_init( VALUE self ) {
   return self;
 }
 
+/* call-seq:
+ *    start
+ *
+ * Start the internal run loop by invoking the CFRunLoopRun method inside a
+ * separate pthread. This method will return immediately although it will take
+ * a few cycles for the actual CFRunLoopRun method to be invoked.
+ *
+ * If the run loop has already been started, then this method returns without
+ * taking any action.
+ */
 static VALUE
 cfrunloop_start( VALUE self ) {
   CFRunLoop cfrunloop = cfrunloop_struct(self);
@@ -182,6 +222,13 @@ cfrunloop_start( VALUE self ) {
   return self;
 }
 
+/* call-seq:
+ *    stop
+ *
+ * Stop the interal run loop by invoking the CFRunLoopStop method. If the run
+ * loop has already been stopped, then this method returns without taking any
+ * action.
+ */
 static VALUE
 cfrunloop_stop( VALUE self ) {
   CFRunLoop cfrunloop = cfrunloop_struct(self);
@@ -189,19 +236,17 @@ cfrunloop_stop( VALUE self ) {
   return self;
 }
 
+/* call-seq:
+ *    running?
+ *
+ * Returns +true+ if in the internal run loop is running. Returns +false+
+ * otherwise.
+ */
 static VALUE
 cfrunloop_is_running( VALUE self ) {
   CFRunLoop cfrunloop = cfrunloop_struct(self);
   if (cfrunloop->running) return Qtrue;
   return Qfalse;
-}
-
-static VALUE
-cfrunloop_is_active( VALUE self ) {
-  CFRunLoop cfrunloop = cfrunloop_struct(self);
-  if (!cfrunloop->running) return Qfalse;
-  if (CFRunLoopIsWaiting(cfrunloop->run_loop)) return Qfalse;
-  return Qtrue;
 }
 
 // =========================================================================
@@ -212,10 +257,9 @@ void Init_cfrunloop() {
   rb_define_singleton_method( cfrunloop_class, "new", cfrunloop_new, 0 );
   rb_define_method( cfrunloop_class, "initialize", cfrunloop_init, 0 );
 
-  rb_define_method( cfrunloop_class, "stop",      cfrunloop_stop,         0 );
-  rb_define_method( cfrunloop_class, "start",     cfrunloop_start,        0 );
-  rb_define_method( cfrunloop_class, "running?",  cfrunloop_is_running,   0 );
-  rb_define_method( cfrunloop_class, "active?",   cfrunloop_is_active ,   0 );
+  rb_define_method( cfrunloop_class, "stop",      cfrunloop_stop,        0 );
+  rb_define_method( cfrunloop_class, "start",     cfrunloop_start,       0 );
+  rb_define_method( cfrunloop_class, "running?",  cfrunloop_is_running,  0 );
 
   rb_define_attr( rb_singleton_class(cfrunloop_class), "instance", 1, 0 );
   cfrunloop_new( cfrunloop_class );
