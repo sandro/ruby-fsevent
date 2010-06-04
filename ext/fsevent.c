@@ -99,7 +99,7 @@ fsevent_rb_callback( VALUE self, VALUE string ) {
 // kernel are written to this pipe as a single string with a newline "\n"
 // character between each path.
 //
-// The user will call the "changes" method on the ruby oejct in order to read
+// The user will call the "changes" method on the ruby object in order to read
 // these paths out from the pipe when needed. The use of the pipe allows 1)
 // the callback to return quickly to the kernel, and 2) for notifications to
 // be queued in the pipe so they are not missed by the main ruby thread.
