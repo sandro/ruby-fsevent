@@ -3,8 +3,8 @@ $LOAD_PATH.unshift(File.dirname(__FILE__) + '/../ext')
 require 'fsevent'
 
 class Restart < FSEvent
-  def on_change(directories)
-    puts "Detected change in: #{directories.inspect}"
+  def on_change(dirs)
+    puts "Detected change in: #{dirs.inspect}"
     unless @restarted
       @restarted = true
       self.watch_directories "#{Dir.pwd}/spec"
@@ -13,7 +13,7 @@ class Restart < FSEvent
   end
 
   def start
-    puts "watching #{registered_directories.join(", ")} for changes"
+    puts "watching #{directories.join(", ")} for changes"
     super
   end
 end
