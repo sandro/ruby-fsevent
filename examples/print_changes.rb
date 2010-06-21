@@ -1,5 +1,5 @@
-$LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib')
-$LOAD_PATH.unshift(File.dirname(__FILE__) + '/../ext')
+
+$LOAD_PATH.unshift File.expand_path('../ext', File.dirname(__FILE__))
 require 'fsevent'
 
 class PrintChange < FSEvent
@@ -16,4 +16,11 @@ end
 printer = PrintChange.new
 printer.latency = 0.2
 printer.watch_directories %W(#{Dir.pwd} /tmp)
-printer.start
+printer.start  # the start method no longer blocks
+
+# You have to get the main ruby thread to sleep or wait on an IO stream
+# otherwise the ruby interpreter will exit. My preferred method is to wait for
+# the user to hit enter. The program will gracefuly exit when the main ruby
+# thread gets to the end of the program.
+STDIN.getc
+
