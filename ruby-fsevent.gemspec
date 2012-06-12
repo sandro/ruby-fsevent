@@ -16,14 +16,14 @@ Gem::Specification.new do |s|
   s.email = %q{sandro.turriate@gmail.com}
   s.extensions = ["ext/extconf.rb", "ext/extconf.rb"]
   s.extra_rdoc_files = [
-    "LICENSE",
-     "README.md"
+    "MIT_LICENSE",
+    "README.markdown"
   ]
   s.files = [
     ".gitignore",
      "History.md",
-     "LICENSE",
-     "README.md",
+     "MIT_LICENSE",
+     "README.markdown",
      "Rakefile",
      "VERSION",
      "examples/print_changes.rb",
